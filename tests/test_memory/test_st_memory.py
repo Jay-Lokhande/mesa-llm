@@ -1,5 +1,7 @@
 from unittest.mock import patch
 
+import pytest
+
 from mesa_llm.memory.memory import MemoryEntry
 from mesa_llm.memory.st_memory import ShortTermMemory
 
@@ -12,7 +14,7 @@ class TestShortTermMemory:
         Tests initialization of ShortTermMemory.
         the assertion statements present are used to check if the ShortTermMemory instance is created properly, it checks for the following
             - if agent = mock_agent
-            - if memory.n = 5 , ie since its pre-defined to 5
+            - if memory.n = 5 , i.e., since its default value is 5
             - also checks if initially the length of the memory created is 0
         """
         memory = ShortTermMemory(agent=mock_agent, display=False)
@@ -21,7 +23,17 @@ class TestShortTermMemory:
         assert memory.n == 5
         assert len(memory.short_term_memory) == 0
 
-    def test_process_step_creates_tep_entry(self, mock_agent):
+    def test_memory_initialization_rejects_non_positive_capacity(self, mock_agent):
+        """
+        n must be a positive integer capacity.
+        """
+        with pytest.raises(ValueError, match="n must be >= 1"):
+            ShortTermMemory(agent=mock_agent, n=0, display=False)
+
+        with pytest.raises(ValueError, match="n must be >= 1"):
+            ShortTermMemory(agent=mock_agent, n=-1, display=False)
+
+    def test_process_step_creates_current_step_entry(self, mock_agent):
         """
         Function to check if the process_step() creates a temp memory
         """
@@ -32,8 +44,9 @@ class TestShortTermMemory:
         # Process pre_step = True
         memory.process_step(pre_step=True)
 
-        assert len(memory.short_term_memory) == 1
-        assert memory.short_term_memory[0].step is None
+        assert len(memory.short_term_memory) == 0
+        assert memory._current_step_entry is not None
+        assert memory._current_step_entry.step is None
         assert memory.step_content == {}
 
     def test_process_step_full_lifecycle(self, mock_agent):
@@ -56,6 +69,9 @@ class TestShortTermMemory:
 
         # here we assert the memory entries step count it must match the earlier agents step value
         assert new_entry.step == 7
+        assert new_entry.content["observation"] == "before"
+        assert new_entry.content["action"] == "after"
+        assert memory._current_step_entry is None
 
     def test_display_called_when_enabled(self, mock_agent):
         """
@@ -116,3 +132,28 @@ class TestShortTermMemory:
 
         steps_in_memory = [entry.step for entry in memory.short_term_memory]
         assert steps_in_memory[-1] == 2
+
+    def test_pre_step_does_not_evict_when_memory_is_full(self, mock_agent):
+        """
+        Ensure pre-step staging does not consume deque capacity before finalization.
+        """
+        memory = ShortTermMemory(agent=mock_agent, n=3, display=False)
+        memory.short_term_memory.extend(
+            [
+                MemoryEntry(agent=mock_agent, content={"obs": 1}, step=1),
+                MemoryEntry(agent=mock_agent, content={"obs": 2}, step=2),
+                MemoryEntry(agent=mock_agent, content={"obs": 3}, step=3),
+            ]
+        )
+
+        # pre-step should stage data without evicting finalized entries
+        memory.step_content = {"observation": "before_step_4"}
+        memory.process_step(pre_step=True)
+        assert [entry.step for entry in memory.short_term_memory] == [1, 2, 3]
+        assert memory._current_step_entry is not None
+
+        # eviction happens only when final step entry is committed
+        mock_agent.model.steps = 4
+        memory.step_content = {"action": "after_step_4"}
+        memory.process_step(pre_step=False)
+        assert [entry.step for entry in memory.short_term_memory] == [2, 3, 4]
