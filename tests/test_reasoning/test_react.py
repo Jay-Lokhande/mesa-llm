@@ -73,6 +73,21 @@ class TestReActReasoning:
         assert len(prompt_list) >= 1
         assert "last communication" not in prompt_list[-1]
 
+    def test_get_react_prompt_with_string_memory_output(self):
+        """Test get_react_prompt handles string memory output."""
+        mock_agent = Mock()
+        mock_agent.memory = Mock()
+        mock_agent.memory.get_prompt_ready.return_value = "memory1"
+        mock_agent.memory.get_communication_history.return_value = ""
+
+        reasoning = ReActReasoning(mock_agent)
+
+        obs = Observation(step=1, self_state={}, local_state={})
+        prompt_list = reasoning.get_react_prompt(obs)
+
+        assert prompt_list[0] == "memory1"
+        assert "current observation" in prompt_list[-1]
+
     def test_plan_with_prompt(self):
         """Test plan method with custom prompt."""
         mock_agent = Mock()

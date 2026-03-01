@@ -46,7 +46,11 @@ class ReActReasoning(Reasoning):
         return system_prompt
 
     def get_react_prompt(self, obs: Observation) -> list[str]:
-        prompt_list = self.agent.memory.get_prompt_ready()
+        prompt_ready = self.agent.memory.get_prompt_ready()
+        if isinstance(prompt_ready, str):
+            prompt_list = [prompt_ready]
+        else:
+            prompt_list = list(prompt_ready)
         last_communication = self.agent.memory.get_communication_history()
 
         if last_communication:
