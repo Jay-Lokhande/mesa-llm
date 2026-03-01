@@ -55,17 +55,21 @@ class ShortTermMemory(Memory):
             self.step_content = {}
             return
 
-        elif not self.short_term_memory[-1].content.get("step", None):
-            pre_step = self.short_term_memory.pop()
-            self.step_content.update(pre_step.content)
-            new_entry = MemoryEntry(
-                agent=self.agent,
-                content=self.step_content,
-                step=self.agent.model.steps,
-            )
+        if not self.short_term_memory or self.short_term_memory[-1].step is not None:
+            return
 
-            self.short_term_memory.append(new_entry)
-            self.step_content = {}
+        pre_step_entry = self.short_term_memory.pop()
+        self.step_content.update(pre_step_entry.content)
+        new_entry = MemoryEntry(
+            agent=self.agent,
+            content=self.step_content,
+            step=self.agent.model.steps,
+        )
+
+        self.short_term_memory.append(new_entry)
+        if len(self.short_term_memory) > self.n:
+            self.short_term_memory.popleft()
+        self.step_content = {}
 
         # Display the new entry
         if self.display:
