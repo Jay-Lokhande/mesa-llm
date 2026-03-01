@@ -41,7 +41,7 @@ For more help on using Mesa-LLM, check out the following resources:
 - [Mesa-LLM Discussions](https://github.com/mesa/mesa-llm/discussions)
 - [PyPI](https://pypi.org/project/mesa-llm/)
 
-## Using Mesa-LLM
+## Supported Model Providers
 
 Mesa-LLM supports the following LLM models :
 
@@ -53,6 +53,24 @@ Mesa-LLM supports the following LLM models :
 - OpenRouter
 - NovitaAI
 - Gemini
+
+## Development Quick Start
+
+For local development and running the full test suite:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pytest --cov=mesa_llm tests/
+```
+
+You can also run style checks before committing:
+
+```bash
+pre-commit install
+pre-commit run --all-files
+```
 
 
 ## Contributing to Mesa-LLM
