@@ -48,7 +48,13 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
             f"Must be one of {list(direction_map.keys())}"
         )
     dx, dy = direction_map[direction]
-    x, y = agent.pos
+    
+    grid = getattr(agent.model, "grid", None)
+    if isinstance(grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
+        x, y = agent.cell.coordinate
+    else:
+        x, y = agent.pos
+        
     new_pos = (x + dx, y + dy)
     target_coordinates = tuple(new_pos)
     teleport_to_location(agent, target_coordinates)

@@ -77,6 +77,30 @@ def test_teleport_to_location_on_orthogonal_grid_without_constructor():
     assert out == "agent 9 moved to (1, 1)."
 
 
+def test_move_one_step_on_orthogonal_grid_without_constructor():
+    class _DummyOrthogonalGrid(OrthogonalMooreGrid):
+        pass
+
+    orth_grid = object.__new__(_DummyOrthogonalGrid)
+    start_target = (1, 1)
+    end_target = (1, 2)
+    start_cell = SimpleNamespace(coordinate=start_target, agents=[])
+    end_cell = SimpleNamespace(coordinate=end_target, agents=[])
+    orth_grid._cells = {start_target: start_cell, end_target: end_cell}
+
+    model = DummyModel()
+    model.grid = orth_grid
+
+    agent = DummyAgent(unique_id=10, model=model)
+    agent.cell = start_cell
+    model.agents.append(agent)
+
+    out = move_one_step(agent, "North")
+
+    assert getattr(agent, "cell", None) is end_cell
+    assert out == "agent 10 moved to (1, 2)."
+
+
 def test_speak_to_records_on_recipients(mocker):
     model = DummyModel()
 
