@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mesa.discrete_space import (
     OrthogonalMooreGrid,
@@ -28,6 +28,25 @@ direction_map = {
 }
 
 
+def _get_agent_position(agent: "LLMAgent") -> Any:
+    """Return the agent position across Mesa space APIs."""
+    cell = getattr(agent, "cell", None)
+    if cell is not None and getattr(cell, "coordinate", None) is not None:
+        return cell.coordinate
+
+    pos = getattr(agent, "pos", None)
+    if pos is not None:
+        return pos
+
+    position = getattr(agent, "position", None)
+    if position is not None:
+        return position
+
+    raise ValueError(
+        "Could not infer agent position from `cell`, `pos`, or `position`."
+    )
+
+
 @tool
 def move_one_step(agent: "LLMAgent", direction: str) -> str:
     """
@@ -48,12 +67,7 @@ def move_one_step(agent: "LLMAgent", direction: str) -> str:
             f"Must be one of {list(direction_map.keys())}"
         )
     dx, dy = direction_map[direction]
-
-    grid = getattr(agent.model, "grid", None)
-    if isinstance(grid, OrthogonalMooreGrid | OrthogonalVonNeumannGrid):
-        x, y = agent.cell.coordinate
-    else:
-        x, y = agent.pos
+    x, y = _get_agent_position(agent)
 
     new_pos = (x + dx, y + dy)
     target_coordinates = tuple(new_pos)
