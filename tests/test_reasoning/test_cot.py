@@ -84,16 +84,17 @@ class TestCoTReasoning:
         # Create an observation (step 0 -> plan.step should be 1)
         obs = Observation(step=0, self_state={}, local_state={})
 
-        plan = agent.reasoning.plan(obs)
+        plan = agent.reasoning.plan(obs=obs)
 
         # Assertions
         assert isinstance(plan, Plan)
         assert plan.step == 1
         assert plan.llm_plan.content == "mock execution"
+        assert plan.ttl == 1
         # and our memory.add_to_memory should at least have been called once with type="observation"
         mock_memory.add_to_memory.assert_any_call(
             type="Observation",
-            content=str(obs),
+            content={"content": str(obs)},
         )
 
     def test_plan_with_selected_tools(self):
@@ -126,9 +127,10 @@ class TestCoTReasoning:
 
         obs = Observation(step=1, self_state={}, local_state={})
         selected_tools = ["tool1", "tool2"]
-        result = reasoning.plan(obs=obs, selected_tools=selected_tools)
+        result = reasoning.plan(obs=obs, ttl=3, selected_tools=selected_tools)
 
         assert isinstance(result, Plan)
+        assert result.ttl == 3
         # Check that tool schema was called with selected tools
         assert mock_agent.tool_manager.get_all_tools_schema.call_count == 2
 
@@ -145,6 +147,40 @@ class TestCoTReasoning:
             ValueError, match=r"No prompt provided and agent.step_prompt is None"
         ):
             reasoning.plan(obs=obs)
+
+    def test_aplan_uses_step_prompt_when_no_prompt_given(self):
+        """Test aplan falls back to agent.step_prompt like sync plan does."""
+        mock_agent = Mock()
+        mock_agent.step_prompt = "Default step prompt"
+        mock_agent.memory = Mock()
+        mock_agent.memory.format_long_term.return_value = "Long term memory"
+        mock_agent.memory.format_short_term.return_value = "Short term memory"
+        mock_agent.memory.aadd_to_memory = AsyncMock()
+        mock_agent.llm = Mock()
+        mock_agent.tool_manager = Mock()
+        mock_agent.tool_manager.get_all_tools_schema.return_value = {}
+        mock_agent._step_display_data = {}
+
+        mock_plan_response = Mock()
+        mock_plan_response.choices = [Mock()]
+        mock_plan_response.choices[
+            0
+        ].message.content = "Thought 1: reasoning\nAction: act"
+
+        mock_exec_response = Mock()
+        mock_exec_response.choices = [Mock()]
+        mock_exec_response.choices[0].message = Mock()
+
+        mock_agent.llm.agenerate = AsyncMock(
+            side_effect=[mock_plan_response, mock_exec_response]
+        )
+
+        reasoning = CoTReasoning(mock_agent)
+        obs = Observation(step=1, self_state={}, local_state={})
+
+        # Call without prompt — should use agent.step_prompt
+        result = asyncio.run(reasoning.aplan(obs=obs))
+        assert isinstance(result, Plan)
 
     def test_aplan_async_version(self):
         """Test aplan async method."""
@@ -179,8 +215,9 @@ class TestCoTReasoning:
 
         obs = Observation(step=1, self_state={}, local_state={})
 
-        result = asyncio.run(reasoning.aplan(prompt="Async prompt", obs=obs))
+        result = asyncio.run(reasoning.aplan(prompt="Async prompt", obs=obs, ttl=4))
 
         assert isinstance(result, Plan)
         assert result.step == 2
+        assert result.ttl == 4
         assert mock_agent.llm.agenerate.call_count == 2
